@@ -19,7 +19,7 @@ class User(Base):
     
     # Rule to remember: back_populates must reference the relationship attribute name on the opposite model
     # user.posts → all posts created by that user
-    posts: Mapped[list[Post]] = relationship(back_populates="author")
+    posts: Mapped[list[Post]] = relationship(back_populates="author", cascade="all, delete-orphan")
 
     @property
     def image_path(self) -> str:

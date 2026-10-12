@@ -14,6 +14,12 @@ class UserCreate(UserBase):
     pass
 
 
+class UserUpdate(BaseModel):
+    username: Annotated[str | None, Field(default=None, min_length=4, max_length=16)]
+    email: Annotated[EmailStr | None, Field(default=None, max_length=100)]
+    profile_image: Annotated[str | None, Field(default=None)]
+
+
 class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -25,11 +31,16 @@ class UserResponse(UserBase):
 # Posts schemas
 class PostBase(BaseModel):
     title: Annotated[str, Field(..., min_length=1, max_length=50)]
-    content: Annotated[str, Field(..., min_length=1, max_length=100)]
+    content: Annotated[str, Field(..., min_length=1)]
 
 
 class PostCreate(PostBase):
     user_id: int
+
+
+class PostUpdate(BaseModel):
+    title: Annotated[str | None, Field(default=None, min_length=1, max_length=50)]
+    content: Annotated[str | None, Field(default=None, min_length=1)]
 
 
 class PostResponse(PostBase):
