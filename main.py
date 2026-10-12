@@ -5,6 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from schemas import PostCreate, PostResponse
+
 app = FastAPI()
 
 # Mount the static files directory to serve CSS, JS, and image files
@@ -44,10 +46,10 @@ def root(req: Request):
     return templates.TemplateResponse(req, "home.html", {"posts": posts})
 
 
-@app.get("/posts/{post_id}")
+@app.get("/posts/{post_id}", include_in_schema=False)
 def post(
     req: Request,
-    post_id: int = Path(..., gt=0, description="Get individual post by post id"),
+    post_id: int = Path(..., gt=0, desPcription="Get individual post by post id"),
 ):
     data = [post for post in posts if post["id"] == post_id]
     if not data:
@@ -60,12 +62,28 @@ def post(
     )
 
 
-@app.get("/api/posts")
+@app.post(
+    "/api/posts", response_model=PostResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_post(post: PostCreate):
+    new_post_id = max(post["id"] for post in posts) + 1 if posts else 1
+    new_post = {
+        "id": new_post_id,
+        "title": post.title,
+        "content": post.content,
+        "author": post.author,
+        "date_posted": "Octobor 12, 2026",
+    }
+    posts.append(new_post)
+    return new_post
+
+
+@app.get("/api/posts", response_model=list[PostResponse])
 async def get_posts():
     return posts
 
 
-@app.get("/api/posts/{post_id}")
+@app.get("/api/posts/{post_id}", response_model=PostResponse)
 async def get_post(
     post_id: int = Path(..., gt=0, description="Get individual post by post id"),
 ):
@@ -103,7 +121,7 @@ async def general_exception_handler(req: Request, exc: StarletteHTTPException):
         req,
         "error.html",
         {"status_code": exc.status_code, "title": exc.status_code, "message": message},
-        status_code=exc.status_code
+        status_code=exc.status_code,
     )
 
 
@@ -124,7 +142,9 @@ async def validation_exception_handler(req: Request, exc: RequestValidationError
         {
             "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
             "title": status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "message": exc.errors()[0]["msg"] if exc.errors() else "Validation error occurred.",
+            "message": exc.errors()[0]["msg"]
+            if exc.errors()
+            else "Validation error occurred.",
         },
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
     )
