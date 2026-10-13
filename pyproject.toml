@@ -5,7 +5,9 @@ description = "Blog app to learn fastapi"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aiosqlite>=0.22.1",
     "fastapi[standard]>=0.142.2",
+    "greenlet>=3.5.6",
     "sqlalchemy>=2.1.4",
 ]
 

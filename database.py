@@ -1,20 +1,21 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from collections.abc import AsyncGenerator
 
-DATABASE_URI = "sqlite:///./blog.db"
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
+DATABASE_URI = "sqlite+aiosqlite:///./blog.db"
 
 
 # SQLAlchemy engine that manages database connections
-engine = create_engine(
+engine = create_async_engine(
     DATABASE_URI, 
     connect_args={"check_same_thread": False}
 )
 
 # Session factory to create session/db
-SessionLocal = sessionmaker(
-    bind=engine, 
-    autoflush=False, 
-    autocommit=False
+AsyncSessionLocal = async_sessionmaker(
+    engine, class_=AsyncSession, 
+    expire_on_commit=False, # SQLAlchemy does not expire the ORM object's attributes after a commit
 )
 
 
@@ -25,6 +26,6 @@ class Base(DeclarativeBase):
 
 # Dependency that provide db/session for each request
 # and ensure that db/session is closed afterward
-def get_db():
-    with SessionLocal() as db:
-        yield db
+async def get_db() -> AsyncGenerator[AsyncSession | None]:
+    async with AsyncSessionLocal() as session:
+        yield session
