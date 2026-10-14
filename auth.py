@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -28,6 +30,16 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hased_password: str) -> bool:
     """Verify a password"""
     return password_hash.verify(password, hased_password)
+
+
+def generate_reset_password_token() -> str:
+    """Generates a cryptographically secure random string"""
+    return secrets.token_urlsafe(32)
+
+
+def hash_reset_password_token(token: str) -> str:
+    """Converts a token into a fixed-length SHA-256 hash string"""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def generate_access_token(

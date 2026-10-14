@@ -21,6 +21,7 @@ class User(Base):
     # Rule to remember: back_populates must reference the relationship attribute name on the opposite model
     # user.posts → all posts created by that user
     posts: Mapped[list[Post]] = relationship(back_populates="author", cascade="all, delete-orphan")
+    reset_tokens: Mapped[list[ResetPasswordToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     @property
     def image_path(self) -> str:
@@ -40,3 +41,15 @@ class Post(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     # post.author → the user who created that post
     author: Mapped[User] = relationship(back_populates="posts")
+
+
+class ResetPasswordToken(Base):
+    __tablename__ = "reset_password_tokens"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expire_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    user: Mapped[User] = relationship(back_populates="reset_tokens")

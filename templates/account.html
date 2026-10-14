@@ -50,17 +50,17 @@
         <form id="changePasswordForm">
             <div class="mb-3">
                 <label for="currentPassword" class="form-label">Current Password</label>
-                <input type="password" class="form-control" id="currentPassword" name="current_password" required>
+                <input type="password" class="form-control" id="currentPassword" name="current_password" required autocomplete="current-password">
             </div>
             <div class="mb-3">
                 <label for="newPassword" class="form-label">New Password</label>
-                <input type="password" class="form-control" id="newPassword" name="new_password" required minlength="8">
+                <input type="password" class="form-control" id="newPassword" name="new_password" required minlength="8" autocomplete="new-password">
                 <div class="form-text">Password must be at least 8 characters.</div>
             </div>
             <div class="mb-3">
                 <label for="confirmNewPassword" class="form-label">Confirm New Password</label>
                 <input type="password" class="form-control" id="confirmNewPassword" name="confirm_new_password" required
-                    minlength="8">
+                    minlength="8" autocomplete="new-password">
             </div>
             <button type="submit" class="btn btn-primary" id="changePasswordBtn">Change Password</button>
         </form>
@@ -368,7 +368,7 @@
         changePasswordBtn.textContent = 'Changing...';
 
         try {
-            const response = await fetch('/api/users/me/password', {
+            const response = await fetch('/api/users/me/change-password', {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',

@@ -72,5 +72,19 @@ class PaginationBase(BaseModel):
 
 class PaginationPosts(PaginationBase):
     model_config = ConfigDict(from_attributes=True)
-    
+
     posts: list[PostResponse]
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: Annotated[EmailStr, Field(..., max_length=120)]
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: Annotated[str, Field(..., min_length=8)]
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: Annotated[str, Field(..., min_length=8)]
