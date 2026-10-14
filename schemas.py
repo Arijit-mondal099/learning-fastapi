@@ -61,3 +61,16 @@ class PostResponse(PostBase):
     user_id: int
     date_posted: datetime
     author: UserPublic
+
+
+class PaginationBase(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    has_more: bool
+
+
+class PaginationPosts(PaginationBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    posts: list[PostResponse]

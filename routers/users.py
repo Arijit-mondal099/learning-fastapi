@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from PIL import UnidentifiedImageError
 from sqlalchemy import func, or_, select
@@ -18,7 +18,15 @@ from config import get_settings
 from database import get_db
 from image_utils import delete_image, process_image
 from models import Post, User
-from schemas import PostResponse, Token, UserCreate, UserPrivate, UserPublic, UserUpdate
+from schemas import (
+    PaginationPosts,
+    PostResponse,
+    Token,
+    UserCreate,
+    UserPrivate,
+    UserPublic,
+    UserUpdate,
+)
 
 router = APIRouter()
 
@@ -106,8 +114,13 @@ async def get_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
     return user
 
 
-@router.get("/{user_id}/posts", response_model=list[PostResponse])
-async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+@router.get("/{user_id}/posts", response_model=PaginationPosts)
+async def get_user_posts(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 5,
+):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
 
@@ -116,12 +129,26 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found!"
         )
 
+    count_result = await db.execute(select(func.count()).select_from(Post))
+    total = count_result.scalar() or 0
+
     result = await db.execute(
-        select(Post).where(Post.user_id == user.id).options(selectinload(Post.author))
+        select(Post)
+        .where(Post.user_id == user.id)
+        .options(selectinload(Post.author))
+        .offset(skip)
+        .limit(limit)
     )
     posts = result.scalars().all()
+    has_more = (skip + len(posts)) < total
 
-    return posts
+    return PaginationPosts(
+        posts=[PostResponse.model_validate(post) for post in posts],
+        total=total,
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
 
 
 @router.patch("/{user_id}", response_model=UserPrivate)

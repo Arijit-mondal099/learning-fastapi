@@ -10,7 +10,7 @@ from fastapi.exception_handlers import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -49,42 +49,43 @@ app.include_router(prefix="/api/posts", router=posts.router, tags=["posts"])
 
 @app.get("/", include_in_schema=False, name="home")
 @app.get("/posts", include_in_schema=False, name="posts")
-async def root(req: Request, db: Annotated[AsyncSession, Depends(get_db)]):
+async def root(
+    req: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    count_result = await db.execute(select(func.count()).select_from(models.Post))
+    total = count_result.scalar() or 0
+
     # We also get author of the post from relationship
     # But in async we have to told sqlalchemy to load author as well
     result = await db.execute(
         select(models.Post)
         .order_by(models.Post.date_posted.desc())
         .options(selectinload(models.Post.author))
+        .limit(10)
     )
     posts = result.scalars().all()
+    has_more = len(posts) < total
 
-    return templates.TemplateResponse(req, "home.html", {"posts": posts})
+    return templates.TemplateResponse(
+        req, "home.html", {"posts": posts, "limit": 10, "has_more": has_more}
+    )
 
 
 @app.get("/register", include_in_schema=False)
 async def register_page(req: Request):
-    return templates.TemplateResponse(
-        req,
-        "register.html",
-        {"title": "Register"}
-    )
-    
+    return templates.TemplateResponse(req, "register.html", {"title": "Register"})
+
+
 @app.get("/login", include_in_schema=False)
 async def login_page(req: Request):
-    return templates.TemplateResponse(
-        req,
-        "login.html",
-        {"title": "Login"}
-    )
+    return templates.TemplateResponse(req, "login.html", {"title": "Login"})
+
 
 @app.get("/account", include_in_schema=False)
 async def account_page(req: Request):
-    return templates.TemplateResponse(
-        req,
-        "account.html",
-        {"title": "Account"}
-    )
+    return templates.TemplateResponse(req, "account.html", {"title": "Account"})
+
 
 @app.get("/posts/{post_id}", include_in_schema=False)
 async def post(
@@ -121,15 +122,32 @@ async def user_posts(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found!"
         )
 
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(models.Post)
+        .where(models.Post.user_id == user.id)
+    )
+    total = count_result.scalar() or 0
+
     result = await db.execute(
         select(models.Post)
         .where(models.Post.user_id == user.id)
         .options(selectinload(models.Post.author))
+        .limit(5)
     )
     posts = result.scalars().all()
+    has_more = len(posts) < total
 
     return templates.TemplateResponse(
-        req, "user_posts.html", {"posts": posts, "user": user, "title": user.username}
+        req,
+        "user_posts.html",
+        {
+            "posts": posts,
+            "user": user,
+            "title": user.username,
+            "limit": 10,
+            "has_more": has_more,
+        },
     )
 
 
