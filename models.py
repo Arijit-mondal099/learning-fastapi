@@ -15,6 +15,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     profile_image: Mapped[str | None] = mapped_column(String(200), nullable=True, default=None)
     
     # Rule to remember: back_populates must reference the relationship attribute name on the opposite model

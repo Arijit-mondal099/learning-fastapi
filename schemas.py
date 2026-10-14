@@ -11,21 +11,32 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    pass
+    password: Annotated[str, Field(..., min_length=8)]
 
 
 class UserUpdate(BaseModel):
     username: Annotated[str | None, Field(default=None, min_length=4, max_length=16)]
     email: Annotated[EmailStr | None, Field(default=None, max_length=100)]
-    profile_image: Annotated[str | None, Field(default=None)]
 
 
-class UserResponse(UserBase):
+class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    username: str
     profile_image: str | None = None
     image_path: str
+
+
+class UserPrivate(UserPublic):
+    model_config = ConfigDict(from_attributes=True)
+
+    email: EmailStr
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "Bearer"
 
 
 # Posts schemas
@@ -35,7 +46,7 @@ class PostBase(BaseModel):
 
 
 class PostCreate(PostBase):
-    user_id: int
+    pass
 
 
 class PostUpdate(BaseModel):
@@ -49,4 +60,4 @@ class PostResponse(PostBase):
     id: int
     user_id: int
     date_posted: datetime
-    author: UserResponse
+    author: UserPublic

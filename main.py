@@ -62,6 +62,30 @@ async def root(req: Request, db: Annotated[AsyncSession, Depends(get_db)]):
     return templates.TemplateResponse(req, "home.html", {"posts": posts})
 
 
+@app.get("/register", include_in_schema=False)
+async def register_page(req: Request):
+    return templates.TemplateResponse(
+        req,
+        "register.html",
+        {"title": "Register"}
+    )
+    
+@app.get("/login", include_in_schema=False)
+async def login_page(req: Request):
+    return templates.TemplateResponse(
+        req,
+        "login.html",
+        {"title": "Login"}
+    )
+
+@app.get("/account", include_in_schema=False)
+async def account_page(req: Request):
+    return templates.TemplateResponse(
+        req,
+        "account.html",
+        {"title": "Account"}
+    )
+
 @app.get("/posts/{post_id}", include_in_schema=False)
 async def post(
     req: Request,

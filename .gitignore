@@ -8,3 +8,14 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Sqlite database
+blog.db
+database.db
+
+# Environment variables
+.env
+.env*
+!.env.example
+
+media/profile_pics/
