@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -7,16 +8,13 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
-    UploadFile,
     status,
 )
 from fastapi.security import OAuth2PasswordRequestForm
-from PIL import UnidentifiedImageError
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from starlette.concurrency import run_in_threadpool
 
 from auth import (
     CurrentUser,
@@ -29,15 +27,17 @@ from auth import (
 from config import get_settings
 from database import get_db
 from email_utils import send_reset_password_email
-from image_utils import delete_image, process_image
+from imagekit import delete_file, get_file_details, get_upload_auth
 from models import Post, ResetPasswordToken, User
 from schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     PaginationPosts,
     PostResponse,
+    ProfilePictureUploadComplete,
     ResetPasswordRequest,
     Token,
+    UploadAuthResponse,
     UserCreate,
     UserPrivate,
     UserPublic,
@@ -251,53 +251,120 @@ async def delete_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found!"
         )
 
-    profile_pic = user.profile_image
+    profile_pic_id = user.profile_image_file_id
 
     await db.delete(user)
     await db.commit()
 
-    if profile_pic:
-        delete_image(profile_pic)
+    if profile_pic_id:
+        await delete_file(profile_pic_id)
 
 
-@router.patch("/{user_id}/picture", response_model=UserPrivate)
-async def upload_profile_pic(
+@router.post(
+    "/{user_id}/picture/upload-auth",
+    response_model=UploadAuthResponse,
+)
+async def create_picture_upload_auth(
     user_id: int,
-    file: UploadFile,
+    current_user: CurrentUser,
+    extension: str = Query(...),
+):
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized to update user profile picture.",
+        )
+
+    extension = extension.lower().lstrip(".")
+
+    if extension not in {"jpg", "jpeg", "png", "webp"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported image extension.",
+        )
+
+    settings = get_settings()
+    auth = get_upload_auth()
+
+    return UploadAuthResponse(
+        upload_id=uuid.uuid4().hex,
+        file_name=f"profile-{user_id}-{uuid.uuid4().hex}.{extension}",
+        token=str(auth["token"]),
+        expire=int(auth["expire"]),
+        signature=str(auth["signature"]),
+        publicKey=settings.imagekit_public_key,
+        folder="/profile-pictures",
+    )
+
+
+@router.patch(
+    "/{user_id}/picture",
+    response_model=UserPrivate,
+)
+async def complete_profile_picture_upload(
+    user_id: int,
+    payload: ProfilePictureUploadComplete,
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     if user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized to update user profile pic!",
+            detail="Not authorized to update this profile picture.",
         )
 
-    content = await file.read()
-
-    if len(content) > get_settings().max_upload_size_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large, max size is {get_settings().max_upload_size_bytes // (1024 * 1024)}MB",
-        )
-
+    # Verify the file against ImageKit's server-side API.
     try:
-        # Process image in worker thread, Don't block the main thread
-        new_filename = await run_in_threadpool(process_image, content)
-    except UnidentifiedImageError as exc:
+        file_details = await get_file_details(payload.file_id)
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invlaid file please upload a valid image (JPEG, PNG)",
+            detail="Could not verify the uploaded image.",
         ) from exc
 
-    old_file = current_user.profile_image
-    current_user.profile_image = new_filename
+    file_path = file_details.get("filePath", "")
+    file_name = file_details.get("name", "")
+    mime_type = file_details.get("mime", "")
+    file_size = file_details.get("size", 0)
 
-    await db.commit()
-    await db.refresh(current_user)
+    # Check the expected folder and this user's filename prefix.
+    expected_prefix = f"profile-{user_id}-"
 
-    if old_file:
-        delete_image(old_file)
+    if (
+        not file_path.startswith("/profile-pictures/")
+        or not file_name.startswith(expected_prefix)
+        or file_details.get("fileType") != "image"
+        or mime_type
+        not in [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        ]
+        or not isinstance(file_size, int)
+        or file_size <= 0
+        or file_size > get_settings().max_upload_size_bytes
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid profile picture.",
+        )
+
+    old_file_id = current_user.profile_image_file_id
+
+    # Store the new URL and ImageKit file ID.
+    current_user.profile_image = file_details["url"]
+    current_user.profile_image_file_id = payload.file_id
+
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+    except Exception:
+        await db.rollback()
+        raise
+
+    # Delete the old image only after the DB transaction succeeds.
+    if old_file_id and old_file_id != payload.file_id:
+        await delete_file(old_file_id)
 
     return current_user
 
@@ -314,18 +381,19 @@ async def delete_profile_pic(
             detail="Unauthorized to delete user profile pic!",
         )
 
-    profile_pic = current_user.profile_image
+    profile_pic_id = current_user.profile_image_file_id
 
-    if profile_pic is None:
+    if profile_pic_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No profile pic to delete"
         )
 
     current_user.profile_image = None
+    current_user.profile_image_file_id = None
     await db.commit()
     await db.refresh(current_user)
 
-    delete_image(profile_pic)
+    await delete_file(profile_pic_id)
 
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
@@ -388,7 +456,7 @@ async def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset password token",
         )
-        
+
     if reset_password_token.expire_at.replace(tzinfo=UTC) < datetime.now(UTC):
         await db.delete(reset_password_token)
         await db.commit()

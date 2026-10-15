@@ -88,3 +88,17 @@ class ResetPasswordRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: Annotated[str, Field(..., min_length=8)]
+
+
+class UploadAuthResponse(BaseModel):
+    upload_id: str
+    file_name: str
+    token: str
+    expire: int
+    signature: str
+    publicKey: str
+    folder: str
+
+
+class ProfilePictureUploadComplete(BaseModel):
+    file_id: str = Field(min_length=1, max_length=255)

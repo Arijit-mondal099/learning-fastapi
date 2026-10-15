@@ -1,7 +1,7 @@
 from enum import Enum
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import AnyHttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     mail_password: SecretStr = SecretStr("")
     mail_from: str = "noreply@fastpai.com"
     mail_use_tls: bool = False
+    
+    imagekit_private_key: SecretStr
+    imagekit_public_key: str
+    imagekit_url_endpoint: AnyHttpUrl
 
     max_upload_size_bytes: int = 5 * 1024 * 1024
 
