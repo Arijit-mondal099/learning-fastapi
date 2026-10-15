@@ -37,6 +37,8 @@ class Post(Base):
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     date_posted: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    # server_default='0' mean after add this likes column set 0 to all the database existing rows database side
+    likes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     # post.author → the user who created that post

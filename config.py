@@ -1,8 +1,14 @@
+from enum import Enum
 from functools import lru_cache
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
+class EnvironmentEnum(str, Enum):
+    DEVELOPMENT = "development"
+    PRODUCTION ="production"
+    TESTING = "testing"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -10,6 +16,9 @@ class Settings(BaseSettings):
     )
     
     frontend_url: str = "http://127.0.0.1:8000"
+    environment: EnvironmentEnum = EnvironmentEnum.DEVELOPMENT
+    
+    database_uri: str
 
     jwt_secret_key: SecretStr
     jwt_algorithm: str = "HS256"
